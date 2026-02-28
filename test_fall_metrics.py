@@ -1,0 +1,50 @@
+from ultralytics import YOLO
+import os
+
+def main():
+    print("--- STARTING PERFORMANCE EVALUATION: Falling ---")
+    
+    # 1. Load your Fall Model
+    model_path = 'Smart_Surveillance_FYP_Train/fall_model/weights/best.pt'
+    
+    if not os.path.exists(model_path):
+        print(f"ERROR: Model not found at {model_path}")
+        return
+
+    model = YOLO(model_path)
+
+    # 2. Run Validation
+    metrics = model.val(
+        data='fall_dataset/data.yaml', 
+        split='val',              
+        project='Model_Metrics',
+        name='fall_eval',
+        plots=True                
+    )
+
+    print("\n" + "="*40)
+    print("      FINAL PERFORMANCE METRICS      ")
+    print("="*40)
+
+    # 3. Extract Key Metrics
+    print(f"1. mAP@50 (Standard Accuracy): {metrics.box.map50:.4f}")
+    print(f"   mAP@50-95 (Strict Accuracy): {metrics.box.map:.4f}")
+
+    # 4. Breakdown by Class
+    print("\n2. AP (Average Precision) per Class:")
+    
+    # This loop automatically handles however many classes you have
+    for i, ap_score in enumerate(metrics.box.maps):
+        # Safety check to avoid index errors if class names aren't fully populated
+        if i in metrics.names:
+            class_name = metrics.names[i]
+            print(f"   - Class '{class_name}': {ap_score:.4f}")
+
+    print(f"\n3. Global Precision: {metrics.box.mp:.4f}")
+    print(f"   Global Recall:    {metrics.box.mr:.4f}")
+
+    print("\n" + "="*40)
+    print("Graphs saved at: Model_Metrics/fall_eval/")
+
+if __name__ == '__main__':
+    main()
