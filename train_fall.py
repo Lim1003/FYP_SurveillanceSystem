@@ -4,36 +4,35 @@ import os
 def main():
     print("--- STEP 1: LOADING LOCAL FALL DATASET ---")
     
-    # 1. Point to the data.yaml in your new folder
-    # We use abspath to ensure Windows finds the file correctly
+    # Absolute path to the dataset configuration
+    # Ensure your data.yaml is inside the 'fall_dataset' folder
     dataset_yaml = os.path.abspath("fall_dataset/data.yaml")
 
     print(f"Targeting dataset at: {dataset_yaml}")
 
-    # Check if file actually exists to prevent errors
     if not os.path.exists(dataset_yaml):
-        print(f"ERROR: Could not find {dataset_yaml}")
+        print(f"[ERROR] Could not find {dataset_yaml}")
         print("Please check if you named the folder 'fall_dataset' correctly.")
         return
 
-    print("--- STEP 2: STARTING FALL TRAINING ON RTX 3060 ---")
+    print("--- STEP 2: STARTING FALL TRAINING (MEDIUM MODEL) ---")
     
-    # Load the base model (starting from scratch with a smart brain)
     model = YOLO("yolov8n.pt") 
 
-    # Train the model
+    print("--- STEP 3: STARTING TRAINING ---")
     results = model.train(
-        data=dataset_yaml,   # Pointing to local file
-        epochs=20,           # 20 Epochs is good for a demo
+        data=dataset_yaml,
+        epochs=60,           # Increased to 60 to allow convergence
         imgsz=640,
-        batch=8,             # Safe batch size for RTX 3060 Laptop
+        batch=8,             # RTX 3060 can handle Batch 8 for Medium
         device=0,            # Force GPU
-        project="Smart_Surveillance_FYP_Train", # Save in the same main folder
-        name="fall_model"    # Name the specific sub-folder 'fall_model'
+        project="Smart_Surveillance_FYP_Train", 
+        name="fall_model", # specific name to distinguish from previous runs
+        patience=10          # Stop if no improvement for 10 epochs
     )
 
-    print("--- TRAINING FINISHED ---")
-    print("New model saved at: Smart_Surveillance_FYP_Train/fall_model/weights/best.pt")
+    print("--- SUCCESS ---")
+    print(f"Final Model Saved at: Smart_Surveillance_FYP_Train/fall_model/weights/best.pt")
 
 if __name__ == '__main__':
     main()
