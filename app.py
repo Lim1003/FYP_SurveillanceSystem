@@ -33,20 +33,20 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # --- GLOBAL VARIABLES ---
-dashboard_state = {"cpu": 0, "fps": 0, "active_models": 0, "alerts": []}
+dashboard_state = {"alerts": []}
 loaded_models = {}  
 reid_system = None
 last_upload_times = {} 
 
 # Sensitivity Thresholds
+CONF_THEFT     = 0.75
 CONF_FIRE      = 0.60
 CONF_SMOKE     = 0.60 
-CONF_FALL      = 0.60
-CONF_THEFT     = 0.80
+CONF_FALL      = 0.85
 CONF_FACE      = 0.60
 CONF_HEADWEAR  = 0.70
 ANGLE_THRESH   = 50
-COOLDOWN_SEC   = 5.0
+COOLDOWN_SEC   = 3.0
 SOUND_COOLDOWN = 3.0
 
 # --- FIREBASE INIT ---
@@ -184,7 +184,7 @@ def trigger_upload(frame, event_type, track_id, confidence, session_id="General"
     }
 
     dashboard_state["alerts"].insert(0, metadata)
-    if len(dashboard_state["alerts"]) > 5:
+    if len(dashboard_state["alerts"]) > 50:
         dashboard_state["alerts"].pop()
 
     thread = threading.Thread(target=upload_worker, args=(frame.copy(), filename, metadata, session_id))
@@ -248,11 +248,11 @@ def calculate_iou(box1, box2):
 
 MODEL_PATHS = {
     'pose': 'yolov8m-pose.pt',
-    'shoplift': 'Smart_Surveillance_FYP_Train/shoplifting_model/weights/best.pt', 
-    'fall': 'Smart_Surveillance_FYP_Train/fall_model/weights/best.pt',
-    'fire': 'Smart_Surveillance_FYP_Train/fire_model/weights/best.pt',
+    'shoplift': 'Smart_Surveillance_FYP_Train/shoplifting_tuned_v1/weights/best.pt', 
+    'fall': 'Smart_Surveillance_FYP_Train/fall_tuned_v1/weights/best.pt',
+    'fire': 'Smart_Surveillance_FYP_Train/fire_tuned_v1/weights/best.pt',
     'face': 'Smart_Surveillance_FYP_Train/face_model/weights/best.pt',
-    'headwear': 'Smart_Surveillance_FYP_Train/headwear_model/weights/best.pt'
+    'headwear': 'Smart_Surveillance_FYP_Train/headwear_tuned_v1/weights/best.pt'
 }
 
 def load_required_models(selected_list):
@@ -367,7 +367,8 @@ def generate_frames(selected_models, source=0, session_id="General"):
             if key in selected_models:
                 futures[key] = executor.submit(run_model_inference, key, frame)
         
-        pose_results = loaded_models['pose'].track(frame, persist=True, verbose=False, tracker="bytetrack.yaml")[0]
+        # [FIX] Added conf=0.65 to stop drawing skeletons on fire/smoke
+        pose_results = loaded_models['pose'].track(frame, persist=True, verbose=False, tracker="bytetrack.yaml", conf=0.65)[0]
         results = {key: future.result() for key, future in futures.items()}
 
         annotator = Annotator(visual_frame, line_width=2)
@@ -397,18 +398,36 @@ def generate_frames(selected_models, source=0, session_id="General"):
             track_ids = pose_results.boxes.id.int().cpu().tolist()
             used_ids_in_frame = set() 
             
-            shoplift_boxes = [b.xyxy[0].cpu().numpy() for b in results['shoplift'].boxes if b.conf[0] > CONF_THEFT] if 'shoplift' in results else []
-            
+            # [UPDATED] Store (Box, Confidence) tuples instead of just Box
+            shoplift_data = []
+            if 'shoplift' in results:
+                for b in results['shoplift'].boxes:
+                    if b.conf[0] > CONF_THEFT:
+                        shoplift_data.append((b.xyxy[0].cpu().numpy(), float(b.conf[0])))
+
             faces = []
             if 'face' in selected_models or 'headwear' in selected_models:
                 if 'face' in results and results['face']:
                     faces = [(int(b.xyxy[0][0]), int(b.xyxy[0][1]), int(b.xyxy[0][2]), int(b.xyxy[0][3])) for b in results['face'].boxes if b.conf[0] > CONF_FACE]
 
-            headwear_active = False
+            # [UPDATED] Store headwear confidence
+            headwear_conf = 0.0
             if 'headwear' in results and results['headwear']:
-                headwear_active = any(b.conf[0] > CONF_HEADWEAR for b in results['headwear'].boxes)
+                for b in results['headwear'].boxes:
+                    if b.conf[0] > CONF_HEADWEAR:
+                        headwear_conf = float(b.conf[0]) # Get the highest confidence
 
             for i, box in enumerate(pose_results.boxes.xyxy):
+                person_box = box.cpu().numpy()
+                
+                # [SAFETY CHECK] If Person Box is inside a Fire Box, ignore it (It's a Ghost)
+                is_ghost = False
+                if 'fire' in results and results['fire']:
+                    for fire_box in results['fire'].boxes.xyxy:
+                        if calculate_iou(person_box, fire_box.cpu().numpy()) > 0.6:
+                            is_ghost = True
+                
+                if is_ghost: continue # Skip drawing this skeleton
                 yolo_id = track_ids[i]
                 
                 # ReID Check
@@ -432,43 +451,62 @@ def generate_frames(selected_models, source=0, session_id="General"):
                 for (fx1, fy1, fx2, fy2) in faces:
                     if fx1 > bx1 and fx2 < bx2 and fy1 > by1 and fy2 < by2: has_face = True
                 
+                # [UPDATED] Check theft and get confidence
                 is_thief = False
-                for t_box in shoplift_boxes:
-                    if calculate_iou(person_box, t_box) > 0.2: is_thief = True
+                theft_conf = 0.0
+                for (t_box, t_conf) in shoplift_data:
+                    if calculate_iou(person_box, t_box) > 0.2: 
+                        is_thief = True
+                        theft_conf = t_conf
 
+                # [UPDATED] Check fall and get confidence
                 is_falling = False
+                fall_conf = 0.0
                 if 'fall' in results and results['fall']:
                     for fbox in results['fall'].boxes:
                         f_np = fbox.xyxy[0].cpu().numpy()
-                        if float(fbox.conf[0]) > CONF_FALL:
+                        f_c = float(fbox.conf[0])
+                        if f_c > CONF_FALL:
                             if calculate_iou(person_box, f_np) > 0.3 and (current_angle > ANGLE_THRESH or current_angle == 0):
                                 is_falling = True
+                                fall_conf = f_c
 
                 final_color = (0, 255, 0)
                 final_text = f"ID:{final_id}"
 
+                # --- LOGIC & DRAWING ORDER FIX ---
+                trigger_event = None # Store event to upload AFTER drawing
+
                 if is_falling:
                     final_color = (255, 0, 255)
-                    final_text = f"ID:{final_id} FALLING"
+                    # [UPDATED] Added {fall_conf:.2f}
+                    final_text = f"ID:{final_id} FALLING {fall_conf:.2f}"
                     status, label = "FALL", f"ID {final_id}"
-                    trigger_upload(visual_frame, "FALL", final_id, 0.90, session_id)
+                    trigger_event = ("FALL", fall_conf)
 
                 elif is_thief:
                     final_color = (0, 165, 255)
-                    final_text = f"ID:{final_id} SUSPECT"
+                    # [UPDATED] Added {theft_conf:.2f}
+                    final_text = f"ID:{final_id} SUSPECT {theft_conf:.2f}"
                     if status not in ["FALL", "FIRE", "SMOKE"]:
                         status, label = "THEFT", f"ID {final_id}"
-                        trigger_upload(visual_frame, "THEFT", final_id, 0.85, session_id)
+                        trigger_event = ("THEFT", theft_conf)
 
-                elif headwear_active and not has_face and 'headwear' in selected_models:
+                elif headwear_conf > 0 and not has_face and 'headwear' in selected_models:
                     final_color = (0, 255, 255)
-                    final_text = f"ID:{final_id} HIDDEN"
+                    # [UPDATED] Added {headwear_conf:.2f}
+                    final_text = f"ID:{final_id} HIDDEN {headwear_conf:.2f}"
                     if status == "SAFE":
                         status, label = "CONCEALED", f"ID {final_id}"
-                        trigger_upload(visual_frame, "CONCEALED_ID", final_id, 0.75, session_id)
+                        trigger_event = ("CONCEALED_ID", headwear_conf)
                 
+                # 1. DRAW FIRST (Crucial: Box must exist on frame before upload)
                 draw_corner_rect(visual_frame, (bx1, by1), (bx2, by2), final_color)
                 draw_text_inside(visual_frame, final_text, bx1, by1, final_color)
+
+                # 2. TRIGGER UPLOAD (Now frame has the drawing)
+                if trigger_event:
+                    trigger_upload(visual_frame, trigger_event[0], final_id, trigger_event[1], session_id)
 
         if fire_detected:
             status, label = "FIRE", "FIRE DETECTED"
@@ -482,7 +520,6 @@ def generate_frames(selected_models, source=0, session_id="General"):
 
         if time.time() - t0 > 0:
             fps = 1/(time.time() - t0)
-        dashboard_state['fps'] = round(fps, 1)
 
         draw_hud(visual_frame, fps, status, label, current_angle)
         
@@ -521,14 +558,12 @@ def upload_video():
 
 @app.route('/api/dashboard_data')
 def get_dashboard_data():
-    dashboard_state["cpu"] = psutil.cpu_percent(interval=None)
     return dashboard_state
 
 @app.route('/api/reset_session', methods=['POST'])
 def reset_session():
     clear_all_memory()
     dashboard_state['alerts'] = []
-    dashboard_state['active_models'] = 0
     return {'status': 'cleared'}
 
 if __name__ == "__main__":
