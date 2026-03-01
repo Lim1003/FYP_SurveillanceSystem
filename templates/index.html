@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuraGuard AI | Smart Surveillance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+    
+    <div class="container">
+        <div class="config-screen screen-transition" id="configScreen">
+            <div class="header-section">
+                <h1>Smart AI Surveillance</h1>
+                <p>Configure your surveillance system</p>
+            </div>
+
+            <div class="main-layout">
+                <div class="glass-panel source-panel">
+                    <h3>Video Source</h3>
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="upload">
+                            <i class="fas fa-upload"></i> Upload Video
+                        </button>
+                        <button class="tab-btn" data-tab="ip">
+                            <i class="fas fa-camera"></i> IP Camera
+                        </button>
+                    </div>
+                    
+                    <div class="tab-content" id="uploadTab">
+                        <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                            <button class="remove-file-btn" id="removeFileBtn" onclick="removeUploadedFile(event)">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            
+                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                            <h3 id="uploadStatusText">Drag and drop your video file here</h3>
+                            <p>or click to browse</p>
+                            <span class="formats">Supported formats: MP4, AVI, MOV, MKV</span>
+                            <input type="file" id="fileInput" accept="video/*" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="ipTab" style="display: none;">
+                        <div style="margin-bottom: 15px; text-align: right;">
+                            <button type="button" class="back-link" id="webcamBtn" onclick="useWebcam()" style="display: inline-flex; font-size: 12px;">
+                                <i class="fas fa-video"></i> Use Webcam
+                            </button>
+                            <button type="button" class="control-link cancel-webcam" id="cancelWebcamBtn" onclick="cancelWebcam()">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                        </div>
+
+                        <div class="input-group">
+                            <label><i class="fas fa-wifi"></i> Camera URL (RTSP / HTTP)</label>
+                            <input type="text" class="rtsp-input" id="rtspUrl" placeholder="rtsp://... OR http://...">
+                        </div>
+
+                        <div style="display: flex; gap: 15px;">
+                            <div class="input-group" style="flex: 1;">
+                                <label><i class="fas fa-user"></i> Username</label>
+                                <input type="text" class="rtsp-input" id="rtspUser" placeholder="admin">
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label><i class="fas fa-key"></i> Password</label>
+                                <input type="password" class="rtsp-input" id="rtspPass" placeholder="admin">
+                            </div>
+                        </div>
+
+                        <div class="info-note">
+                            <i class="fas fa-lightbulb"></i> Supports <b>RTSP</b> (rtsp://) and <b>MJPEG</b> (http://) streams.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="glass-panel models-panel">
+                    <h3>AI Detection Models</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <p class="subtitle" style="margin: 0;">Select models to activate</p>
+                        <div>
+                            <button class="control-link" onclick="toggleAllModels(true)">Select All</button>
+                            <span style="color:#555">|</span>
+                            <button class="control-link" onclick="toggleAllModels(false)">Clear</button>
+                        </div>
+                    </div>
+                    
+                    <div class="model-list">
+                        <div class="model-row" data-model="fire">
+                            <div class="model-info">
+                                <i class="fas fa-fire model-icon fire"></i>
+                                <div>
+                                    <h4>Fire Detection</h4>
+                                    <p>Detect fire and smoke in real-time</p>
+                                </div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="model-row" data-model="fall">
+                            <div class="model-info">
+                                <i class="fas fa-user-injured model-icon fall"></i>
+                                <div>
+                                    <h4>Fall Detection</h4>
+                                    <p>Alert when someone falls</p>
+                                </div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="model-row" data-model="shoplift">
+                            <div class="model-info">
+                                <i class="fas fa-shopping-bag model-icon theft"></i>
+                                <div>
+                                    <h4>Shoplifting</h4>
+                                    <p>Detect suspicious behavior</p>
+                                </div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="model-row" data-model="face">
+                            <div class="model-info">
+                                <i class="fas fa-user-shield model-icon face"></i>
+                                <div>
+                                    <h4>Face ID</h4>
+                                    <p>Identify persons of interest</p>
+                                </div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div class="model-row" data-model="headwear">
+                            <div class="model-info">
+                                <i class="fas fa-hat-cowboy model-icon face"></i>
+                                <div>
+                                    <h4>Headwear ID</h4>
+                                    <p>Detect concealed identity</p>
+                                </div>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-action">
+                <button class="start-btn" onclick="startSurveillance()">
+                    <i class="fas fa-video"></i> Start Surveillance
+                </button>
+            </div>
+        </div>
+
+        <div class="monitoring-screen" id="monitoringScreen" style="display: none;">
+            <div class="dashboard-header">
+                <div class="brand">
+                    <button class="back-link" onclick="backToConfig()"><i class="fas fa-chevron-left"></i> Back to Config</button>
+                    <h2>Live Monitoring</h2>
+                </div>
+                <div class="live-indicator">
+                    <div class="status-dot"></div> LIVE
+                </div>
+            </div>
+            
+            <div class="dashboard-main">
+                <div class="video-container">
+                    <div class="video-wrapper">
+                        <img id="videoStream" src="" alt="Live Feed" style="width: 100%; height: 100%; object-fit: contain;" />
+                        <div class="overlay-tag">RTSP: 5</div>
+                    </div>
+                    <div class="active-tags" id="activeModelTags">
+                    </div>
+                </div>
+                
+                <div class="alert-panel">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Live Alerts</h3>
+                    <p class="alert-count" id="alert-count">0 events today</p>
+                    <div class="alert-list" id="alert-list-container" style="overflow-y: auto; max-height: 60vh; padding-right: 5px;">
+                        <div style="padding: 10px; color: #666; font-size: 12px;">Waiting for events...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+
+    <div id="imageModal" class="modal">
+        <span class="close-modal" onclick="closeModal()">&times;</span>
+        <img class="modal-content" id="fullImage">
+    </div>
+</body>
+</html>
