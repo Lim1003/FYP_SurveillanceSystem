@@ -1,6 +1,13 @@
 let uploadedVideoPath = null;
 let isWebcam = false;
-let dashboardInterval = null; // [NEW] To stop logs when leaving page
+let dashboardInterval = null;
+
+// Ensure consistent state on load
+document.addEventListener('DOMContentLoaded', () => {
+    // Explicitly hide the cancel button on load to prevent UI glitches
+    const cancelBtn = document.getElementById('cancelWebcamBtn');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+});
 
 // --- 1. FILE UPLOAD LOGIC ---
 const fileInput = document.getElementById('fileInput');
@@ -48,19 +55,23 @@ function removeUploadedFile(event) {
     uploadedVideoPath = null;
     document.getElementById('fileInput').value = "";
     
+    // Reset Text
     const uploadText = document.getElementById('uploadStatusText');
     if (uploadText) uploadText.innerText = "Drag and drop your video file here";
     
+    // Reset Zone Styling
     const zone = document.querySelector('.upload-zone');
     if (zone) {
-        zone.style.borderColor = '#333';
-        zone.style.background = 'transparent';
+        zone.style.borderColor = 'rgba(0,0,0,0.1)'; 
+        zone.style.background = 'rgba(255,255,255,0.3)'; 
     }
+    
+    // Hide Button
     const removeBtn = document.getElementById('removeFileBtn');
     if (removeBtn) removeBtn.style.display = 'none';
 }
 
-// --- 2. WEBCAM LOGIC (Safe Version) ---
+// --- 2. WEBCAM LOGIC (Corrected) ---
 function useWebcam() {
     const inputField = document.getElementById('rtspUrl');
     const cancelBtn = document.getElementById('cancelWebcamBtn');
@@ -74,7 +85,7 @@ function useWebcam() {
         inputField.style.color = "#2ed573";
     }
     
-    // Safety checks in case button IDs are missing in HTML
+    // Show Cancel, Hide Webcam button
     if (cancelBtn) cancelBtn.style.display = "inline-flex";
     if (webcamBtn) webcamBtn.style.display = "none";
     
@@ -90,10 +101,11 @@ function cancelWebcam() {
         inputField.value = "";
         inputField.disabled = false;
         inputField.style.opacity = "1";
-        inputField.style.border = "1px solid #2a2a35";
-        inputField.style.color = "white";
+        inputField.style.border = "1px solid #2a2a35"; // Resetting to default style
+        inputField.style.color = "var(--text-main)";
     }
 
+    // Hide Cancel, Show Webcam button
     if (cancelBtn) cancelBtn.style.display = "none";
     if (webcamBtn) webcamBtn.style.display = "inline-flex";
 
@@ -107,7 +119,6 @@ function toggleAllModels(shouldSelect) {
     });
 }
 
-// --- 4. START SURVEILLANCE ---
 // --- 4. START SURVEILLANCE ---
 function startSurveillance() {
     const activeTab = document.querySelector('.tab-btn.active').getAttribute('data-tab');
@@ -136,17 +147,15 @@ function startSurveillance() {
                 return;
             }
 
-            // Logic to inject credentials for both RTSP and HTTP
             if (user && pass) {
                 if (rawUrl.includes('@')) {
-                    finalSource = rawUrl; // Credentials already in URL
+                    finalSource = rawUrl; 
                 } else {
-                    // Inject user:pass after the protocol (e.g., http://user:pass@192...)
                     const parts = rawUrl.split('://');
                     if (parts.length === 2) {
                         finalSource = `${parts[0]}://${user}:${pass}@${parts[1]}`;
                     } else {
-                        finalSource = rawUrl; // Fallback
+                        finalSource = rawUrl; 
                     }
                 }
             } else {
@@ -169,11 +178,20 @@ function startSurveillance() {
         if (checkbox && checkbox.checked) {
             activeModels.push(row.getAttribute('data-model'));
             const tag = document.createElement('span');
-            tag.className = 'tag';
+            tag.className = 'overlay-tag'; // Using consistent styling
+            tag.style.position = 'relative';
+            tag.style.top = '0';
+            tag.style.left = '0';
+            tag.style.marginRight = '5px';
             tag.innerHTML = `<i class="fas fa-check-circle"></i> ${row.querySelector('h4').innerText}`;
             tagsContainer.appendChild(tag);
         }
     });
+
+    if (activeModels.includes('shoplift')) {
+        if (!activeModels.includes('face')) activeModels.push('face');
+        if (!activeModels.includes('headwear')) activeModels.push('headwear');
+    }
 
     if (activeModels.length === 0) {
         alert("⚠️ Please select at least one AI Model!");
@@ -187,17 +205,15 @@ function startSurveillance() {
         document.getElementById('configScreen').style.display = 'none';
         document.getElementById('monitoringScreen').style.display = 'block';
         document.getElementById('videoStream').src = streamUrl;
+        document.getElementById('videoStream').style.display = "block"; 
         
         setTimeout(() => {
             document.getElementById('monitoringScreen').style.opacity = '1';
         }, 50);
 
-        // ---  ADD THIS BLOCK HERE ---
-        // Start polling the server for alerts every 1 second
-        if (dashboardInterval) clearInterval(dashboardInterval); // clear any old ones
+        if (dashboardInterval) clearInterval(dashboardInterval);
         dashboardInterval = setInterval(updateDashboard, 1000); 
         console.log("Dashboard polling started..."); 
-        // -----------------------------
 
     }, 400);
 }
@@ -227,14 +243,12 @@ window.onclick = function(event) {
 
 function updateDashboard() {
     const monitoringScreen = document.getElementById('monitoringScreen');
-    // Double check to prevent background polling
     if (!monitoringScreen || monitoringScreen.style.display === 'none') return;
 
     fetch('/api/dashboard_data')
         .then(response => response.json())
         .then(data => {
-            
-            if (data.alerts.length > 0) {
+            if (data.alerts && data.alerts.length > 0) {
                 const alertCount = document.getElementById('alert-count');
                 const alertList = document.getElementById('alert-list-container');
                 
@@ -258,54 +272,49 @@ function updateDashboard() {
                 }
             }
         })
-        .catch(err => console.log("Dashboard update skipped"));
+        .catch(err => console.log("Dashboard update skipped or idle"));
 }
 
-// --- 6. BACK BUTTON (FIXED) ---
+// --- 6. BACK BUTTON ---
 function backToConfig() {
-    // 1. Stop Video
     const videoStream = document.getElementById('videoStream');
     if (videoStream) {
+        videoStream.style.display = 'none'; 
         videoStream.src = "";
-        videoStream.removeAttribute("src"); // Force kill connection
+        videoStream.removeAttribute("src"); 
     }
 
-    // 2. Stop Polling Logs
     if (dashboardInterval) {
         clearInterval(dashboardInterval);
         dashboardInterval = null;
     }
     
-    // 3. Reset Session on Server
-    fetch('/api/reset_session', { method: 'POST' });
+    fetch('/api/reset_session', { method: 'POST' }).catch(err => console.log(err));
     
-    // 4. Safe UI Reset (Checks if elements exist first)
     try {
-        cancelWebcam(); // Attempt to reset webcam
+        cancelWebcam(); 
     } catch(e) { console.log("Webcam reset skipped"); }
 
     const alertList = document.getElementById('alert-list-container');
     const alertCount = document.getElementById('alert-count');
-    if (alertList) alertList.innerHTML = '<div style="padding: 10px; color: #666;">Waiting for events...</div>';
+    if (alertList) alertList.innerHTML = '<div style="padding: 10px; color: #666; font-size: 12px;">Waiting for events...</div>';
     if (alertCount) alertCount.innerText = "0 events";
 
-    // 5. Visual Transition
     const configScreen = document.getElementById('configScreen');
     const monitoringScreen = document.getElementById('monitoringScreen');
 
     if (monitoringScreen && configScreen) {
+        monitoringScreen.style.display = 'none';
         monitoringScreen.style.opacity = '0';
+        
+        configScreen.style.display = 'block';
         setTimeout(() => {
-            monitoringScreen.style.display = 'none';
-            configScreen.style.display = 'block';
-            setTimeout(() => {
-                configScreen.style.opacity = '1';
-            }, 50);
-        }, 400);
+            configScreen.style.opacity = '1';
+        }, 10);
     }
 }
 
-// Helpers
+// Tab Switching Logic
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
