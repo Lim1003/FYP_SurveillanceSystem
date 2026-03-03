@@ -120,32 +120,70 @@ function toggleAllModels(shouldSelect) {
 }
 
 // --- 4. START SURVEILLANCE ---
+// --- 4. START SURVEILLANCE ---
 function startSurveillance() {
-    const activeTab = document.querySelector('.tab-btn.active').getAttribute('data-tab');
+    // 1. Identify Active Tab safely
+    const activeBtn = document.querySelector('.tab-btn.active');
+    const activeTab = activeBtn ? activeBtn.getAttribute('data-tab') : 'upload'; 
+    
     let finalSource = "";
     let sessionName = "Unknown";
     
+    // --- [VALIDATION RESET] ---
+    const uploadZone = document.querySelector('.upload-zone');
+    const urlInput = document.getElementById('rtspUrl');
+    const modelPanel = document.querySelector('.models-panel');
+
+    // Reset styles
+    if (uploadZone) {
+        uploadZone.style.borderColor = 'rgba(0,0,0,0.1)';
+        uploadZone.style.backgroundColor = 'rgba(255,255,255,0.3)';
+    }
+    if (urlInput) {
+        urlInput.style.borderColor = 'rgba(0,0,0,0.1)'; 
+        urlInput.style.backgroundColor = 'rgba(255,255,255,0.6)';
+    }
+    if (modelPanel) {
+        modelPanel.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+    }
+
+    // --- [SOURCE CHECK] ---
     if (activeTab === 'upload') {
+        // A. Upload Tab Logic
         if (!uploadedVideoPath) {
+            if (uploadZone) {
+                uploadZone.style.borderColor = '#FF3B30';
+                uploadZone.style.backgroundColor = 'rgba(255, 59, 48, 0.05)';
+            }
             alert("⚠️ Please upload a video file first!");
             return;
         }
         finalSource = uploadedVideoPath;
         sessionName = "Video_Upload";
+
     } else {
-        // IP Tab Logic
+        // B. IP Tab Logic (activeTab == 'ip')
         if (isWebcam) {
             finalSource = "0";
             sessionName = "Webcam";
         } else {
-            const rawUrl = document.getElementById('rtspUrl').value.trim();
-            const user = document.getElementById('rtspUser').value.trim();
-            const pass = document.getElementById('rtspPass').value.trim();
+            // Check RTSP/HTTP URL Input
+            const rawUrl = urlInput ? urlInput.value.trim() : "";
 
             if (!rawUrl) {
-                alert("⚠️ Please enter a Camera URL (RTSP or HTTP).");
+                // [VISUAL ERROR] Highlight the RTSP Input Box
+                if (urlInput) {
+                    urlInput.style.borderColor = '#FF3B30'; // Red Border
+                    urlInput.style.backgroundColor = 'rgba(255, 59, 48, 0.1)'; // Light Red BG
+                    urlInput.focus(); // Auto-focus the field
+                }
+                alert("⚠️ Please enter a Camera URL (RTSP or HTTP) or use the Webcam.");
                 return;
             }
+
+            // Handle Credentials if present
+            const user = document.getElementById('rtspUser').value.trim();
+            const pass = document.getElementById('rtspPass').value.trim();
 
             if (user && pass) {
                 if (rawUrl.includes('@')) {
@@ -161,55 +199,75 @@ function startSurveillance() {
             } else {
                 finalSource = rawUrl;
             }
-            
             sessionName = "IP_Camera";
         }
     }
 
+    // Safety Check: If for any reason source is still missing
+    if (!finalSource) {
+         alert("⚠️ Error: No video source detected.");
+         return;
+    }
+
     const sessionId = `${sessionName}_${Date.now()}`;
 
-    // Gather Models
+    // --- [MODEL CHECK] ---
     const activeModels = [];
     const tagsContainer = document.getElementById('activeModelTags');
-    tagsContainer.innerHTML = ''; 
+    if (tagsContainer) tagsContainer.innerHTML = ''; 
 
     document.querySelectorAll('.model-row').forEach(row => {
         const checkbox = row.querySelector('input[type="checkbox"]');
         if (checkbox && checkbox.checked) {
             activeModels.push(row.getAttribute('data-model'));
-            const tag = document.createElement('span');
-            tag.className = 'overlay-tag'; // Using consistent styling
-            tag.style.position = 'relative';
-            tag.style.top = '0';
-            tag.style.left = '0';
-            tag.style.marginRight = '5px';
-            tag.innerHTML = `<i class="fas fa-check-circle"></i> ${row.querySelector('h4').innerText}`;
-            tagsContainer.appendChild(tag);
+            
+            // Add tag to monitoring screen
+            if (tagsContainer) {
+                const tag = document.createElement('span');
+                tag.className = 'overlay-tag'; 
+                tag.style.position = 'relative';
+                tag.style.marginRight = '5px';
+                tag.innerHTML = `<i class="fas fa-check-circle"></i> ${row.querySelector('h4').innerText}`;
+                tagsContainer.appendChild(tag);
+            }
         }
     });
 
+    // Auto-select dependencies
     if (activeModels.includes('shoplift')) {
         if (!activeModels.includes('face')) activeModels.push('face');
         if (!activeModels.includes('headwear')) activeModels.push('headwear');
     }
 
+    // Validate Models
     if (activeModels.length === 0) {
-        alert("⚠️ Please select at least one AI Model!");
+        if (modelPanel) {
+            modelPanel.style.borderColor = '#FF3B30'; // Red Border on Model Panel
+        }
+        alert("⚠️ Please select at least one AI Detection Model!");
         return;
     }
 
+    // --- [START STREAM] ---
     const streamUrl = `/video_feed?source=${encodeURIComponent(finalSource)}&models=${activeModels.join(',')}&session=${sessionId}`;
 
-    document.getElementById('configScreen').style.opacity = '0';
+    const configScreen = document.getElementById('configScreen');
+    const monitoringScreen = document.getElementById('monitoringScreen');
+    const videoStream = document.getElementById('videoStream');
+
+    if (configScreen) configScreen.style.opacity = '0';
+    
     setTimeout(() => {
-        document.getElementById('configScreen').style.display = 'none';
-        document.getElementById('monitoringScreen').style.display = 'block';
-        document.getElementById('videoStream').src = streamUrl;
-        document.getElementById('videoStream').style.display = "block"; 
+        if (configScreen) configScreen.style.display = 'none';
+        if (monitoringScreen) {
+            monitoringScreen.style.display = 'block';
+            setTimeout(() => { monitoringScreen.style.opacity = '1'; }, 50);
+        }
         
-        setTimeout(() => {
-            document.getElementById('monitoringScreen').style.opacity = '1';
-        }, 50);
+        if (videoStream) {
+            videoStream.src = streamUrl;
+            videoStream.style.display = "block"; 
+        }
 
         if (dashboardInterval) clearInterval(dashboardInterval);
         dashboardInterval = setInterval(updateDashboard, 1000); 
@@ -325,3 +383,19 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (content) content.style.display = 'block';
     });
 });
+
+// --- NEW CODE START: CLICKABLE MODEL ROWS ---
+document.querySelectorAll('.model-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+        // Check if the user clicked the actual switch/slider
+        // If they did, let the default HTML behavior handle it (prevent double-toggle)
+        if (e.target.closest('.switch')) return;
+
+        // Otherwise, find the checkbox in this row and toggle it
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+            checkbox.checked = !checkbox.checked;
+        }
+    });
+});
+// --- NEW CODE END ---
