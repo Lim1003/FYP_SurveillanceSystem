@@ -35,7 +35,7 @@
                                 <i class="fas fa-times"></i>
                             </button>
                             
-                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                            <i class="fas fa-cloud-upload-alt upload-icon"></i>         
                             <h3 id="uploadStatusText">Drag and drop your video file here</h3>
                             <p>or click to browse</p>
                             <span class="formats">Supported formats: MP4, AVI, MOV, MKV</span>
@@ -44,12 +44,13 @@
                     </div>
                     
                     <div class="tab-content" id="ipTab" style="display: none;">
-                        <div style="margin-bottom: 15px; text-align: right;">
-                            <button type="button" class="back-link" id="webcamBtn" onclick="useWebcam()" style="display: inline-flex; font-size: 12px;">
+                        <div class="webcam-controls" style="margin-bottom: 15px; text-align: right; height: 32px;">
+                            <button type="button" class="back-link" id="webcamBtn" onclick="useWebcam()" style="font-size: 12px; margin: 0;">
                                 <i class="fas fa-video"></i> Use Webcam
                             </button>
-                            <button type="button" class="control-link cancel-webcam" id="cancelWebcamBtn" onclick="cancelWebcam()">
-                                <i class="fas fa-times"></i> Cancel
+                            
+                            <button type="button" class="control-link cancel-webcam" id="cancelWebcamBtn" onclick="cancelWebcam()" style="display: none;">
+                                <i class="fas fa-times"></i> Cancel Webcam
                             </button>
                         </div>
 
@@ -76,23 +77,23 @@
                 </div>
                 
                 <div class="glass-panel models-panel">
-                    <h3>AI Detection Models</h3>
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <p class="subtitle" style="margin: 0;">Select models to activate</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="margin: 0;">AI Detection Models</h3>
                         <div>
                             <button class="control-link" onclick="toggleAllModels(true)">Select All</button>
-                            <span style="color:#555">|</span>
                             <button class="control-link" onclick="toggleAllModels(false)">Clear</button>
                         </div>
                     </div>
                     
                     <div class="model-list">
-                        <div class="model-row" data-model="fire">
+                        <div class="model-row" data-model="shoplift">
                             <div class="model-info">
-                                <i class="fas fa-fire model-icon fire"></i>
+                                <div class="model-icon theft">
+                                    <i class="fas fa-shopping-bag"></i>
+                                </div>
                                 <div>
-                                    <h4>Fire Detection</h4>
-                                    <p>Detect fire and smoke in real-time</p>
+                                    <h4>Shoplifting</h4>
+                                    <p>Detect suspicious behavior</p>
                                 </div>
                             </div>
                             <label class="switch">
@@ -100,10 +101,12 @@
                                 <span class="slider"></span>
                             </label>
                         </div>
-
+                        
                         <div class="model-row" data-model="fall">
                             <div class="model-info">
-                                <i class="fas fa-user-injured model-icon fall"></i>
+                                <div class="model-icon fall">
+                                    <i class="fas fa-user-injured"></i>
+                                </div>
                                 <div>
                                     <h4>Fall Detection</h4>
                                     <p>Alert when someone falls</p>
@@ -115,40 +118,14 @@
                             </label>
                         </div>
 
-                        <div class="model-row" data-model="shoplift">
+                        <div class="model-row" data-model="fire">
                             <div class="model-info">
-                                <i class="fas fa-shopping-bag model-icon theft"></i>
-                                <div>
-                                    <h4>Shoplifting</h4>
-                                    <p>Detect suspicious behavior</p>
+                                <div class="model-icon fire">
+                                    <i class="fas fa-fire"></i>
                                 </div>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-
-                        <div class="model-row" data-model="face">
-                            <div class="model-info">
-                                <i class="fas fa-user-shield model-icon face"></i>
                                 <div>
-                                    <h4>Face ID</h4>
-                                    <p>Identify persons of interest</p>
-                                </div>
-                            </div>
-                            <label class="switch">
-                                <input type="checkbox">
-                                <span class="slider"></span>
-                            </label>
-                        </div>
-                        
-                        <div class="model-row" data-model="headwear">
-                            <div class="model-info">
-                                <i class="fas fa-hat-cowboy model-icon face"></i>
-                                <div>
-                                    <h4>Headwear ID</h4>
-                                    <p>Detect concealed identity</p>
+                                    <h4>Fire Detection</h4>
+                                    <p>Detect fire and smoke</p>
                                 </div>
                             </div>
                             <label class="switch">
@@ -157,6 +134,7 @@
                             </label>
                         </div>
                     </div>
+
                 </div>
             </div>
             
@@ -182,27 +160,28 @@
                 <div class="video-container">
                     <div class="video-wrapper">
                         <img id="videoStream" src="" alt="Live Feed" style="width: 100%; height: 100%; object-fit: contain;" />
-                        <div class="overlay-tag">RTSP: 5</div>
+                        <div class="overlay-tag">LIVE FEED</div>
                     </div>
                     <div class="active-tags" id="activeModelTags">
-                    </div>
+                        </div>
                 </div>
                 
                 <div class="alert-panel">
                     <h3><i class="fas fa-exclamation-triangle"></i> Live Alerts</h3>
                     <p class="alert-count" id="alert-count">0 events today</p>
-                    <div class="alert-list" id="alert-list-container" style="overflow-y: auto; max-height: 60vh; padding-right: 5px;">
+                    <div class="alert-list" id="alert-list-container">
                         <div style="padding: 10px; color: #666; font-size: 12px;">Waiting for events...</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 
     <div id="imageModal" class="modal">
         <span class="close-modal" onclick="closeModal()">&times;</span>
         <img class="modal-content" id="fullImage">
     </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
